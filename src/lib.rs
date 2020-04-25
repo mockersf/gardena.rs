@@ -239,8 +239,8 @@ impl Gardena {
         Ok(())
     }
 
-    async fn add_headers<'a>(
-        &'a self,
+    async fn add_headers(
+        &self,
         request_builder: reqwest::RequestBuilder,
     ) -> Result<reqwest::RequestBuilder, Box<dyn std::error::Error>> {
         let request_builder = request_builder.header("X-Api-Key", self.application_key.clone());

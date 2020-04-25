@@ -5,6 +5,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use clap::Clap;
 use futures::join;
 use hyper::{
     service::{make_service_fn, service_fn},
@@ -12,6 +13,14 @@ use hyper::{
 };
 use lazy_static::lazy_static;
 use serde::Deserialize;
+
+#[derive(Clap)]
+#[clap(version = "1.0", author = "François")]
+struct CliOpts {
+    /// conf path
+    #[clap(short = "c", long = "config", default_value = "gardena.conf")]
+    config: String,
+}
 
 #[derive(Deserialize)]
 struct Opts {
@@ -214,8 +223,10 @@ fn gardena_object_to_state(object: &gardena_rs::Object) -> (String, State) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli_opts: CliOpts = CliOpts::parse();
+
     let opts: Opts = hocon::HoconLoader::new()
-        .load_file("gardena.conf")
+        .load_file(&cli_opts.config)
         .and_then(|hc| hc.resolve())
         .unwrap();
 
@@ -239,8 +250,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let state_read_lock = STATE.read().unwrap();
                     let old_state = state_read_lock.get(&id);
                     let mut changes = if let Some(old_state) = old_state {
-                        let changes = old_state.diff_with(&new_state, id.clone());
-                        changes
+                        old_state.diff_with(&new_state, id.clone())
                     } else {
                         vec![]
                     };
@@ -252,7 +262,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         INFLUXDB_CHANGES.write().unwrap().append(&mut changes);
                     }
                 });
-            let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+            let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
             let server = run_server(addr);
             let (ws_result, _) = join!(ws_client, server);
             ws_result?

@@ -20,12 +20,13 @@ tokio = { version = "0.2", optional = true, features = ["full"] }
 hocon = { version = "0.3", optional = true }
 hyper = { version = "0.13", optional = true }
 lazy_static = { version = "1.4", optional = true }
+clap = { git = "https://github.com/clap-rs/clap", optional = true }
 
 [features]
 # default = ["websocket-tokio"]
 websocket-asyncstd = [ "tungstenite", "asyncstd-tungstenite", "futures" ]
 websocket-tokio = [ "tungstenite", "tokio-tungstenite", "futures", "tokio" ]
-web-monitor = [ "hocon", "hyper", "lazy_static", "websocket-tokio" ]
+web-monitor = [ "hocon", "hyper", "lazy_static", "clap", "websocket-tokio" ]
 
 [dev-dependencies]
 tokio = { version = "0.2", features = ["macros"] }
