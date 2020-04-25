@@ -1,0 +1,40 @@
+[package]
+name = "gardena-rs"
+version = "0.1.0"
+authors = ["François Mockers <mockersf@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+reqwest = { version = "0.10", features = [ "json" ] }
+serde = { version = "1.0", features = [ "derive" ] }
+serde_json = "1.0"
+url = "2.1"
+rand = "0.7"
+
+tungstenite = { version = "0.10", optional = true }
+asyncstd-tungstenite = { version = "0.4.2", optional = true, features = [ "async-native-tls", "async-std-runtime" ], package = "async-tungstenite" }
+futures = { version = "0.3", optional = true }
+tokio-tungstenite = { version = "0.4.2", optional = true, features = [ "tokio-runtime", "tokio-tls" ], package = "async-tungstenite" }
+tokio = { version = "0.2", optional = true, features = ["full"] }
+
+hocon = { version = "0.3", optional = true }
+hyper = { version = "0.13", optional = true }
+lazy_static = { version = "1.4", optional = true }
+
+[features]
+# default = ["websocket-tokio"]
+websocket-asyncstd = [ "tungstenite", "asyncstd-tungstenite", "futures" ]
+websocket-tokio = [ "tungstenite", "tokio-tungstenite", "futures", "tokio" ]
+web-monitor = [ "hocon", "hyper", "lazy_static", "websocket-tokio" ]
+
+[dev-dependencies]
+tokio = { version = "0.2", features = ["macros"] }
+clap = { git = "https://github.com/clap-rs/clap" }
+
+[[bin]]
+name = "monitor"
+required-features = [ "web-monitor" ]
+
+[[example]]
+name = "test"
+required-features = [ "websocket-asyncstd" ]
