@@ -6,7 +6,7 @@ use std::{
 };
 
 use clap::Clap;
-use futures::join;
+use futures::future::{select, Either};
 use hyper::{
     service::{make_service_fn, service_fn},
     Body, Request, Response, Server,
@@ -241,40 +241,61 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let locations = gardena.list_locations().await?;
 
     if let gardena_rs::Object::Location { ref id, .. } = locations[0] {
-        let ws_info = gardena.get_websocket_url(&id).await?;
-        if let gardena_rs::Object::Websocket { ref attributes, .. } = ws_info {
-            gardena.get_location(id).await?.iter().for_each(|object| {
-                let (id, state) = gardena_object_to_state(object);
-                INFLUXDB_CHANGES
-                    .write()
-                    .unwrap()
-                    .append(&mut state.init_changes(id.clone()));
-                STATE.write().unwrap().insert(id, state);
-            });
-            let ws_client =
-                gardena_rs::tokio::connect_to_websocket(attributes.url.clone(), |msg| {
-                    let (id, new_state) = gardena_object_to_state(&msg);
-                    let state_read_lock = STATE.read().unwrap();
-                    let old_state = state_read_lock.get(&id);
-                    let mut changes = if let Some(old_state) = old_state {
-                        old_state.diff_with(&new_state, id.clone())
-                    } else {
-                        vec![]
-                    };
-                    // releasing read lock manually in case there are changes to write
-                    std::mem::drop(state_read_lock);
-
-                    if !changes.is_empty() {
-                        STATE.write().unwrap().insert(id, new_state);
-                        INFLUXDB_CHANGES.write().unwrap().append(&mut changes);
-                    }
-                });
-            let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
-            let server = run_server(addr);
-            let (ws_result, _) = join!(ws_client, server);
-            ws_result?
+        let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+        let server = run_server(addr);
+        futures::pin_mut!(server);
+        let mut server = server;
+        loop {
+            let ws_client = refresh_and_listen(&gardena, id);
+            futures::pin_mut!(ws_client);
+            match select(ws_client, server).await {
+                Either::Left((_, b)) => {
+                    server = b;
+                }
+                Either::Right(_) => break,
+            }
         }
     }
 
+    Ok(())
+}
+
+async fn refresh_and_listen(
+    gardena: &gardena_rs::Gardena,
+    id: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // renew token
+    gardena.login().await?;
+    let ws_info = gardena.get_websocket_url(&id).await?;
+    if let gardena_rs::Object::Websocket { ref attributes, .. } = ws_info {
+        gardena.get_location(id).await?.iter().for_each(|object| {
+            let (id, state) = gardena_object_to_state(object);
+            INFLUXDB_CHANGES
+                .write()
+                .unwrap()
+                .append(&mut state.init_changes(id.clone()));
+            STATE.write().unwrap().insert(id, state);
+        });
+
+        println!("opening socket");
+        gardena_rs::tokio::connect_to_websocket(attributes.url.clone(), |msg| {
+            let (id, new_state) = gardena_object_to_state(&msg);
+            let state_read_lock = STATE.read().unwrap();
+            let old_state = state_read_lock.get(&id);
+            let mut changes = if let Some(old_state) = old_state {
+                old_state.diff_with(&new_state, id.clone())
+            } else {
+                vec![]
+            };
+            // releasing read lock manually in case there are changes to write
+            std::mem::drop(state_read_lock);
+
+            if !changes.is_empty() {
+                STATE.write().unwrap().insert(id, new_state);
+                INFLUXDB_CHANGES.write().unwrap().append(&mut changes);
+            }
+        })
+        .await?;
+    }
     Ok(())
 }

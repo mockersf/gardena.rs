@@ -373,14 +373,23 @@ pub mod tokio {
     {
         let (ws_stream, _) = tokio_tungstenite::tokio::connect_async(url).await?;
 
+        let should_break = std::sync::Mutex::new(false);
+
         let (mut write, read) = ws_stream.split();
         let act_on_messages = {
             read.for_each(|message| async {
-                let data = message.unwrap().into_data();
-                if let Ok(msg) = serde_json::from_slice::<super::Object>(&data) {
-                    act(msg);
+                if let Ok(data) = message {
+                    let data = data.into_data();
+                    if let Ok(msg) = serde_json::from_slice::<super::Object>(&data) {
+                        act(msg);
+                    } else {
+                        println!("error parsing data from socket");
+                        dbg!(std::str::from_utf8(&data).unwrap());
+                        *should_break.lock().unwrap() = true;
+                    }
                 } else {
-                    dbg!(std::str::from_utf8(&data).unwrap());
+                    println!("error reading data from socket");
+                    *should_break.lock().unwrap() = true;
                 }
             })
         };
@@ -406,6 +415,12 @@ pub mod tokio {
                 // web socket listener future ended, exit
                 Either::Right((_, _)) => break,
             }
+
+            // break as websocket received an unknown message
+            if *should_break.lock().unwrap() {
+                break;
+            }
+
             // ping future was the first future to end, send ping
             write
                 .send(tokio_tungstenite::tungstenite::Message::text("Ping"))
