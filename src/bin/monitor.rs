@@ -66,23 +66,26 @@ async fn run_server(addr: SocketAddr) {
 }
 
 macro_rules! diff_string {
-    ($old: ident, $new:ident, $field:ident, $id: ident, $ts:ident, $changes:ident) => {
+    ($old: ident, $new:ident, $field:ident, $category:expr, $id: ident, $ts:ident, $changes:ident) => {
         if $old.$field != $new.$field {
             $changes.push(format!(
-                "common,id={} {}=\"{}\" {}",
+                "{},id={},{}={} {}_count=1 {}",
+                $category,
                 $id,
                 stringify!($field),
                 $new.$field,
+                stringify!($field),
                 $ts
             ));
         }
     };
 }
 macro_rules! diff_number {
-    ($old: ident, $new:ident, $field:ident, $id: ident, $ts:ident, $changes:ident) => {
+    ($old: ident, $new:ident, $field:ident, $category:expr, $id:ident, $ts:ident, $changes:ident) => {
         if $old.$field != $new.$field {
             $changes.push(format!(
-                "common,id={} {}={} {}",
+                "{},id={} {}={} {}",
+                $category,
                 $id,
                 stringify!($field),
                 $new.$field,
@@ -114,12 +117,14 @@ impl StateCommon {
 
     fn diff_with(&self, new_state: &StateCommon, id: String) -> Vec<String> {
         let ts = ts_nano();
+        let category = "common";
         let mut changes = vec![];
-        diff_string!(self, new_state, name, id, ts, changes);
-        diff_number!(self, new_state, battery_level, id, ts, changes);
-        diff_string!(self, new_state, battery_state, id, ts, changes);
-        diff_number!(self, new_state, rf_link_level, id, ts, changes);
-        diff_string!(self, new_state, rf_link_state, id, ts, changes);
+
+        diff_string!(self, new_state, name, category, id, ts, changes);
+        diff_number!(self, new_state, battery_level, category, id, ts, changes);
+        diff_string!(self, new_state, battery_state, category, id, ts, changes);
+        diff_number!(self, new_state, rf_link_level, category, id, ts, changes);
+        diff_string!(self, new_state, rf_link_state, category, id, ts, changes);
 
         changes
     }
@@ -144,20 +149,22 @@ impl StateMower {
     }
     fn diff_with(&self, new_state: &StateMower, id: String) -> Vec<String> {
         let ts = ts_nano();
+        let category = "mower";
         let mut changes = vec![];
 
-        diff_string!(self, new_state, state, id, ts, changes);
-        diff_string!(self, new_state, activity, id, ts, changes);
-        diff_number!(self, new_state, operating_hours, id, ts, changes);
+        diff_string!(self, new_state, state, category, id, ts, changes);
+        diff_string!(self, new_state, activity, category, id, ts, changes);
+        diff_number!(self, new_state, operating_hours, category, id, ts, changes);
 
         if self.last_error_code != new_state.last_error_code {
             changes.push(format!(
-                "common,id={} last_error_code=\"{}\" {}",
+                "{},id={},last_error_code={} last_error_code_count=1 {}",
+                category,
                 id,
                 new_state
                     .last_error_code
                     .clone()
-                    .unwrap_or_else(|| String::from("None")),
+                    .unwrap_or_else(|| String::from("NO_MESSAGE")),
                 ts
             ));
         }
