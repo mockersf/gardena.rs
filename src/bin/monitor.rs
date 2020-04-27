@@ -312,11 +312,17 @@ async fn refresh_and_listen(
     if let gardena_rs::Object::Websocket { ref attributes, .. } = ws_info {
         gardena.get_location(id).await?.iter().for_each(|object| {
             let (id, state) = gardena_object_to_state(object);
-            INFLUXDB_CHANGES
-                .write()
-                .unwrap()
-                .append(&mut state.init_changes(id.clone()));
+            let state_read_lock = STATE.read().unwrap();
+            let old_state = state_read_lock.get(&id);
+            let mut changes = if let Some(old_state) = old_state {
+                old_state.diff_with(&new_state, id.clone())
+            } else {
+                state.init_changes(id.clone());
+            };
+            // releasing read lock manually in case before writing changes
+            std::mem::drop(state_read_lock);
             STATE.write().unwrap().insert(id, state);
+            INFLUXDB_CHANGES.write().unwrap().append(&mut changes);
         });
 
         println!("opening socket");
