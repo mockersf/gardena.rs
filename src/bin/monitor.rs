@@ -14,6 +14,8 @@ use hyper::{
 use lazy_static::lazy_static;
 use serde::Deserialize;
 
+static NEVER_HAPPENING: &str = "NEVER_HAPPENING";
+
 #[derive(Clap)]
 #[clap(version = "1.0", author = "François")]
 struct CliOpts {
@@ -68,6 +70,26 @@ async fn run_server(addr: SocketAddr) {
 macro_rules! diff_string {
     ($old: ident, $new:ident, $field:ident, $category:expr, $id: ident, $ts:ident, $changes:ident) => {
         if $old.$field != $new.$field {
+            if $old.$field != NEVER_HAPPENING {
+                $changes.push(format!(
+                    "{},id={},{}={} {}_count=1 {}",
+                    $category,
+                    $id,
+                    stringify!($field),
+                    $old.$field,
+                    stringify!($field),
+                    $ts - 2000000000
+                ));
+                $changes.push(format!(
+                    "{},id={},{}={} {}_count=0 {}",
+                    $category,
+                    $id,
+                    stringify!($field),
+                    $old.$field,
+                    stringify!($field),
+                    $ts - 1000000000
+                ));
+            }
             $changes.push(format!(
                 "{},id={},{}={} {}_count=1 {}",
                 $category,
@@ -106,11 +128,11 @@ struct StateCommon {
 impl StateCommon {
     fn init_changes(&self, id: String) -> Vec<String> {
         StateCommon {
-            name: String::from("NEVER_HAPPENING"),
+            name: String::from(NEVER_HAPPENING),
             battery_level: std::u8::MAX,
-            battery_state: String::from("NEVER_HAPPENING"),
+            battery_state: String::from(NEVER_HAPPENING),
             rf_link_level: std::u8::MAX,
-            rf_link_state: String::from("NEVER_HAPPENING"),
+            rf_link_state: String::from(NEVER_HAPPENING),
         }
         .diff_with(self, id)
     }
@@ -140,9 +162,9 @@ struct StateMower {
 impl StateMower {
     fn init_changes(&self, id: String) -> Vec<String> {
         StateMower {
-            state: String::from("NEVER_HAPPENING"),
-            activity: String::from("NEVER_HAPPENING"),
-            last_error_code: Some(String::from("NEVER_HAPPENING")),
+            state: String::from(NEVER_HAPPENING),
+            activity: String::from(NEVER_HAPPENING),
+            last_error_code: Some(String::from(NEVER_HAPPENING)),
             operating_hours: std::u16::MAX,
         }
         .diff_with(self, id)
@@ -157,6 +179,26 @@ impl StateMower {
         diff_number!(self, new_state, operating_hours, category, id, ts, changes);
 
         if self.last_error_code != new_state.last_error_code {
+            let old_last_error_code = self
+                .last_error_code
+                .clone()
+                .unwrap_or_else(|| String::from("NO_MESSAGE"));
+            if old_last_error_code != NEVER_HAPPENING {
+                changes.push(format!(
+                    "{},id={},last_error_code={} last_error_code_count=1 {}",
+                    category,
+                    id,
+                    old_last_error_code,
+                    ts - 2000000000
+                ));
+                changes.push(format!(
+                    "{},id={},last_error_code={} last_error_code_count=0 {}",
+                    category,
+                    id,
+                    old_last_error_code,
+                    ts - 1000000000
+                ));
+            }
             changes.push(format!(
                 "{},id={},last_error_code={} last_error_code_count=1 {}",
                 category,
