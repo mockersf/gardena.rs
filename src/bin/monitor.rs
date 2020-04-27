@@ -315,9 +315,9 @@ async fn refresh_and_listen(
             let state_read_lock = STATE.read().unwrap();
             let old_state = state_read_lock.get(&id);
             let mut changes = if let Some(old_state) = old_state {
-                old_state.diff_with(&new_state, id.clone())
+                old_state.diff_with(&state, id.clone())
             } else {
-                state.init_changes(id.clone());
+                state.init_changes(id.clone())
             };
             // releasing read lock manually in case before writing changes
             std::mem::drop(state_read_lock);
