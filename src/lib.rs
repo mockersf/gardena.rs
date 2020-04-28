@@ -395,22 +395,31 @@ pub mod tokio {
         };
 
         futures::pin_mut!(act_on_messages);
-        let mut act_on_messages = act_on_messages;
 
+        // send ping message every 120 secondes
         let mut ping_interval = tokio::time::interval(core::time::Duration::from_secs(120));
         // wait first iteration as first is now
         ping_interval.tick().await;
 
+        // force websocket to die after 70 minutes as it should only last 60 minutes anyway
+        let mut force_kill = tokio::time::interval(core::time::Duration::from_secs(4_200));
+        // wait first iteration as first is now
+        force_kill.tick().await;
+        let mut ws_or_scheduled_death = futures::future::select(
+            futures::future::poll_fn(|cx| force_kill.poll_tick(cx)),
+            act_on_messages,
+        );
+
         loop {
             let first_done = futures::future::select(
                 futures::future::poll_fn(|cx| ping_interval.poll_tick(cx)),
-                act_on_messages,
+                ws_or_scheduled_death,
             )
             .await;
             match first_done {
                 // ping future is first, refresh web socket listener future
                 Either::Left((_, b)) => {
-                    act_on_messages = b;
+                    ws_or_scheduled_death = b;
                 }
                 // web socket listener future ended, exit
                 Either::Right((_, _)) => break,
