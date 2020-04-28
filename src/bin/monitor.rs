@@ -15,6 +15,9 @@ use lazy_static::lazy_static;
 use serde::Deserialize;
 
 static NEVER_HAPPENING: &str = "NEVER_HAPPENING";
+static ONE_HOUR_FIFTEEN_MINUTES: u128 = 4_500_000_000_000;
+static TWO_SECONDS: u128 = 2_000_000_000;
+static ONE_SECOND: u128 = 1_000_000_000;
 
 #[derive(Clap)]
 #[clap(version = "1.0", author = "François")]
@@ -68,7 +71,7 @@ async fn run_server(addr: SocketAddr) {
 }
 
 macro_rules! diff_string {
-    ($old: ident, $new:ident, $field:ident, $category:expr, $id: ident, $ts:ident, $changes:ident) => {
+    ($old: ident, $new:ident, $field:ident, $category:expr, $id: ident, $changes:ident) => {
         if $old.$field.value != $new.$field.value {
             if $old.$field.value != NEVER_HAPPENING {
                 $changes.push(format!(
@@ -78,7 +81,7 @@ macro_rules! diff_string {
                     stringify!($field),
                     $old.$field.value,
                     stringify!($field),
-                    $ts - 2000000000
+                    $new.$field.ts - TWO_SECONDS
                 ));
                 $changes.push(format!(
                     "{},id={},{}={} {}_count=0 {}",
@@ -87,7 +90,7 @@ macro_rules! diff_string {
                     stringify!($field),
                     $old.$field.value,
                     stringify!($field),
-                    $ts - 1000000000
+                    $new.$field.ts - ONE_SECOND
                 ));
             }
             $changes.push(format!(
@@ -97,7 +100,17 @@ macro_rules! diff_string {
                 stringify!($field),
                 $new.$field.value,
                 stringify!($field),
-                $ts
+                $new.$field.ts
+            ));
+        } else if $old.$field.ts + ONE_HOUR_FIFTEEN_MINUTES > $new.$field.ts {
+            $changes.push(format!(
+                "{},id={},{}={} {}_count=1 {}",
+                $category,
+                $id,
+                stringify!($field),
+                $new.$field.value,
+                stringify!($field),
+                $new.$field.ts
             ));
         } else {
             $new.$field.ts = $old.$field.ts;
@@ -105,7 +118,7 @@ macro_rules! diff_string {
     };
 }
 macro_rules! diff_number {
-    ($old: ident, $new:ident, $field:ident, $category:expr, $id:ident, $ts:ident, $changes:ident) => {
+    ($old: ident, $new:ident, $field:ident, $category:expr, $id:ident, $changes:ident) => {
         if $old.$field.value != $new.$field.value {
             $changes.push(format!(
                 "{},id={} {}={} {}",
@@ -113,8 +126,19 @@ macro_rules! diff_number {
                 $id,
                 stringify!($field),
                 $new.$field.value,
-                $ts
+                $new.$field.ts
             ));
+        } else if $old.$field.ts + ONE_HOUR_FIFTEEN_MINUTES > $new.$field.ts {
+            $changes.push(format!(
+                "{},id={} {}={} {}",
+                $category,
+                $id,
+                stringify!($field),
+                $new.$field.value,
+                $new.$field.ts
+            ));
+        } else {
+            $new.$field.ts = $old.$field.ts;
         }
     };
 }
@@ -156,14 +180,13 @@ impl StateCommon {
     }
 
     fn diff_with(&self, new_state: &mut StateCommon, id: String) -> Vec<String> {
-        let ts = ts_nano();
         let category = "common";
         let mut changes = vec![];
 
-        diff_number!(self, new_state, battery_level, category, id, ts, changes);
-        diff_string!(self, new_state, battery_state, category, id, ts, changes);
-        diff_number!(self, new_state, rf_link_level, category, id, ts, changes);
-        diff_string!(self, new_state, rf_link_state, category, id, ts, changes);
+        diff_number!(self, new_state, battery_level, category, id, changes);
+        diff_string!(self, new_state, battery_state, category, id, changes);
+        diff_number!(self, new_state, rf_link_level, category, id, changes);
+        diff_string!(self, new_state, rf_link_state, category, id, changes);
 
         changes
     }
@@ -199,13 +222,12 @@ impl StateMower {
         .diff_with(self, id)
     }
     fn diff_with(&self, new_state: &mut StateMower, id: String) -> Vec<String> {
-        let ts = ts_nano();
         let category = "mower";
         let mut changes = vec![];
 
-        diff_string!(self, new_state, state, category, id, ts, changes);
-        diff_string!(self, new_state, activity, category, id, ts, changes);
-        diff_number!(self, new_state, operating_hours, category, id, ts, changes);
+        diff_string!(self, new_state, state, category, id, changes);
+        diff_string!(self, new_state, activity, category, id, changes);
+        diff_number!(self, new_state, operating_hours, category, id, changes);
 
         if self.last_error_code.value != new_state.last_error_code.value {
             let old_last_error_code = self
@@ -219,14 +241,14 @@ impl StateMower {
                     category,
                     id,
                     old_last_error_code,
-                    ts - 2000000000
+                    new_state.last_error_code.ts - TWO_SECONDS
                 ));
                 changes.push(format!(
                     "{},id={},last_error_code={} last_error_code_count=0 {}",
                     category,
                     id,
                     old_last_error_code,
-                    ts - 1000000000
+                    new_state.last_error_code.ts - ONE_SECOND
                 ));
             }
             changes.push(format!(
@@ -238,8 +260,23 @@ impl StateMower {
                     .value
                     .clone()
                     .unwrap_or_else(|| String::from("NO_MESSAGE")),
-                ts
+                new_state.last_error_code.ts
             ));
+        } else if self.last_error_code.ts + ONE_HOUR_FIFTEEN_MINUTES > new_state.last_error_code.ts
+        {
+            changes.push(format!(
+                "{},id={},last_error_code={} last_error_code_count=1 {}",
+                category,
+                id,
+                new_state
+                    .last_error_code
+                    .value
+                    .clone()
+                    .unwrap_or_else(|| String::from("NO_MESSAGE")),
+                new_state.last_error_code.ts
+            ));
+        } else {
+            new_state.last_error_code.ts = self.last_error_code.ts;
         }
 
         changes
