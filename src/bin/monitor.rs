@@ -102,7 +102,7 @@ macro_rules! diff_string {
                 stringify!($field),
                 $new.$field.ts
             ));
-        } else if $old.$field.ts + ONE_HOUR_FIFTEEN_MINUTES > $new.$field.ts {
+        } else if $old.$field.ts + ONE_HOUR_FIFTEEN_MINUTES < $new.$field.ts {
             $changes.push(format!(
                 "{},id={},{}={} {}_count=1 {}",
                 $category,
@@ -128,7 +128,7 @@ macro_rules! diff_number {
                 $new.$field.value,
                 $new.$field.ts
             ));
-        } else if $old.$field.ts + ONE_HOUR_FIFTEEN_MINUTES > $new.$field.ts {
+        } else if $old.$field.ts + ONE_HOUR_FIFTEEN_MINUTES < $new.$field.ts {
             $changes.push(format!(
                 "{},id={} {}={} {}",
                 $category,
@@ -262,7 +262,7 @@ impl StateMower {
                     .unwrap_or_else(|| String::from("NO_MESSAGE")),
                 new_state.last_error_code.ts
             ));
-        } else if self.last_error_code.ts + ONE_HOUR_FIFTEEN_MINUTES > new_state.last_error_code.ts
+        } else if self.last_error_code.ts + ONE_HOUR_FIFTEEN_MINUTES < new_state.last_error_code.ts
         {
             changes.push(format!(
                 "{},id={},last_error_code={} last_error_code_count=1 {}",
