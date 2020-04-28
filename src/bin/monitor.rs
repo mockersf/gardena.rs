@@ -69,14 +69,14 @@ async fn run_server(addr: SocketAddr) {
 
 macro_rules! diff_string {
     ($old: ident, $new:ident, $field:ident, $category:expr, $id: ident, $ts:ident, $changes:ident) => {
-        if $old.$field != $new.$field {
-            if $old.$field != NEVER_HAPPENING {
+        if $old.$field.value != $new.$field.value {
+            if $old.$field.value != NEVER_HAPPENING {
                 $changes.push(format!(
                     "{},id={},{}={} {}_count=1 {}",
                     $category,
                     $id,
                     stringify!($field),
-                    $old.$field,
+                    $old.$field.value,
                     stringify!($field),
                     $ts - 2000000000
                 ));
@@ -85,7 +85,7 @@ macro_rules! diff_string {
                     $category,
                     $id,
                     stringify!($field),
-                    $old.$field,
+                    $old.$field.value,
                     stringify!($field),
                     $ts - 1000000000
                 ));
@@ -95,54 +95,71 @@ macro_rules! diff_string {
                 $category,
                 $id,
                 stringify!($field),
-                $new.$field,
+                $new.$field.value,
                 stringify!($field),
                 $ts
             ));
+        } else {
+            $new.$field.ts = $old.$field.ts;
         }
     };
 }
 macro_rules! diff_number {
     ($old: ident, $new:ident, $field:ident, $category:expr, $id:ident, $ts:ident, $changes:ident) => {
-        if $old.$field != $new.$field {
+        if $old.$field.value != $new.$field.value {
             $changes.push(format!(
                 "{},id={} {}={} {}",
                 $category,
                 $id,
                 stringify!($field),
-                $new.$field,
+                $new.$field.value,
                 $ts
             ));
         }
     };
 }
 
+#[derive(Debug, Clone)]
+struct TsValue<T> {
+    value: T,
+    ts: u128,
+}
+
 #[derive(Debug)]
 struct StateCommon {
-    name: String,
-    battery_level: u8,
-    battery_state: String,
-    rf_link_level: u8,
-    rf_link_state: String,
+    battery_level: TsValue<u8>,
+    battery_state: TsValue<String>,
+    rf_link_level: TsValue<u8>,
+    rf_link_state: TsValue<String>,
 }
 impl StateCommon {
-    fn init_changes(&self, id: String) -> Vec<String> {
+    fn init_changes(&mut self, id: String) -> Vec<String> {
         StateCommon {
-            name: String::from(NEVER_HAPPENING),
-            battery_level: std::u8::MAX,
-            battery_state: String::from(NEVER_HAPPENING),
-            rf_link_level: std::u8::MAX,
-            rf_link_state: String::from(NEVER_HAPPENING),
+            battery_level: TsValue {
+                value: std::u8::MAX,
+                ts: 0,
+            },
+            battery_state: TsValue {
+                value: String::from(NEVER_HAPPENING),
+                ts: 0,
+            },
+            rf_link_level: TsValue {
+                value: std::u8::MAX,
+                ts: 0,
+            },
+            rf_link_state: TsValue {
+                value: String::from(NEVER_HAPPENING),
+                ts: 0,
+            },
         }
         .diff_with(self, id)
     }
 
-    fn diff_with(&self, new_state: &StateCommon, id: String) -> Vec<String> {
+    fn diff_with(&self, new_state: &mut StateCommon, id: String) -> Vec<String> {
         let ts = ts_nano();
         let category = "common";
         let mut changes = vec![];
 
-        diff_string!(self, new_state, name, category, id, ts, changes);
         diff_number!(self, new_state, battery_level, category, id, ts, changes);
         diff_string!(self, new_state, battery_state, category, id, ts, changes);
         diff_number!(self, new_state, rf_link_level, category, id, ts, changes);
@@ -154,22 +171,34 @@ impl StateCommon {
 
 #[derive(Debug)]
 struct StateMower {
-    state: String,
-    activity: String,
-    last_error_code: Option<String>,
-    operating_hours: u16,
+    state: TsValue<String>,
+    activity: TsValue<String>,
+    last_error_code: TsValue<Option<String>>,
+    operating_hours: TsValue<u16>,
 }
 impl StateMower {
-    fn init_changes(&self, id: String) -> Vec<String> {
+    fn init_changes(&mut self, id: String) -> Vec<String> {
         StateMower {
-            state: String::from(NEVER_HAPPENING),
-            activity: String::from(NEVER_HAPPENING),
-            last_error_code: Some(String::from(NEVER_HAPPENING)),
-            operating_hours: std::u16::MAX,
+            state: TsValue {
+                value: String::from(NEVER_HAPPENING),
+                ts: 0,
+            },
+            activity: TsValue {
+                value: String::from(NEVER_HAPPENING),
+                ts: 0,
+            },
+            last_error_code: TsValue {
+                value: Some(String::from(NEVER_HAPPENING)),
+                ts: 0,
+            },
+            operating_hours: TsValue {
+                value: std::u16::MAX,
+                ts: 0,
+            },
         }
         .diff_with(self, id)
     }
-    fn diff_with(&self, new_state: &StateMower, id: String) -> Vec<String> {
+    fn diff_with(&self, new_state: &mut StateMower, id: String) -> Vec<String> {
         let ts = ts_nano();
         let category = "mower";
         let mut changes = vec![];
@@ -178,9 +207,10 @@ impl StateMower {
         diff_string!(self, new_state, activity, category, id, ts, changes);
         diff_number!(self, new_state, operating_hours, category, id, ts, changes);
 
-        if self.last_error_code != new_state.last_error_code {
+        if self.last_error_code.value != new_state.last_error_code.value {
             let old_last_error_code = self
                 .last_error_code
+                .value
                 .clone()
                 .unwrap_or_else(|| String::from("NO_MESSAGE"));
             if old_last_error_code != NEVER_HAPPENING {
@@ -205,6 +235,7 @@ impl StateMower {
                 id,
                 new_state
                     .last_error_code
+                    .value
                     .clone()
                     .unwrap_or_else(|| String::from("NO_MESSAGE")),
                 ts
@@ -222,14 +253,14 @@ enum State {
     Unused,
 }
 impl State {
-    fn init_changes(&self, id: String) -> Vec<String> {
+    fn init_changes(&mut self, id: String) -> Vec<String> {
         match self {
             State::Common(state) => state.init_changes(id),
             State::Mower(state) => state.init_changes(id),
             State::Unused => vec![],
         }
     }
-    fn diff_with(&self, new_state: &State, id: String) -> Vec<String> {
+    fn diff_with(&self, new_state: &mut State, id: String) -> Vec<String> {
         match (self, new_state) {
             (State::Common(old), State::Common(new)) => old.diff_with(new, id),
             (State::Mower(old), State::Mower(new)) => old.diff_with(new, id),
@@ -240,24 +271,48 @@ impl State {
 }
 
 fn gardena_object_to_state(object: &gardena_rs::Object) -> (String, State) {
+    let ts = ts_nano();
     match object {
         gardena_rs::Object::Common { id, attributes, .. } => (
             format!("{}-COMMON", id),
             State::Common(StateCommon {
-                name: attributes.name.value.clone(),
-                battery_level: attributes.battery_level.value,
-                battery_state: attributes.battery_state.value.clone(),
-                rf_link_level: attributes.rf_link_level.value,
-                rf_link_state: attributes.rf_link_state.value.clone(),
+                battery_level: TsValue {
+                    value: attributes.battery_level.value,
+                    ts,
+                },
+                battery_state: TsValue {
+                    value: attributes.battery_state.value.clone(),
+                    ts,
+                },
+                rf_link_level: TsValue {
+                    value: attributes.rf_link_level.value,
+                    ts,
+                },
+                rf_link_state: TsValue {
+                    value: attributes.rf_link_state.value.clone(),
+                    ts,
+                },
             }),
         ),
         gardena_rs::Object::Mower { id, attributes, .. } => (
             format!("{}-MOWER", id),
             State::Mower(StateMower {
-                state: attributes.state.value.clone(),
-                activity: attributes.activity.value.clone(),
-                last_error_code: attributes.last_error_code.as_ref().map(|a| a.value.clone()),
-                operating_hours: attributes.operating_hours.value,
+                state: TsValue {
+                    value: attributes.state.value.clone(),
+                    ts,
+                },
+                activity: TsValue {
+                    value: attributes.activity.value.clone(),
+                    ts,
+                },
+                last_error_code: TsValue {
+                    value: attributes.last_error_code.as_ref().map(|a| a.value.clone()),
+                    ts,
+                },
+                operating_hours: TsValue {
+                    value: attributes.operating_hours.value,
+                    ts,
+                },
             }),
         ),
         gardena_rs::Object::Device { .. }
