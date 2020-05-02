@@ -92,11 +92,9 @@ impl<'de> Visitor<'de> for MowerStateVisitor {
     where
         E: de::Error,
     {
-        Ok(match value {
-            "ERROR" => MowerState::Error,
-            "OK" => MowerState::Ok,
-            "WARNING" => MowerState::Warning,
-            r => MowerState::Other(String::from(r)),
+        Ok(match MowerState::from_str(value) {
+            Ok(v) => v,
+            _ => MowerState::Other(String::from(value)),
         })
     }
 }
