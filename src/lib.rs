@@ -619,7 +619,8 @@ impl Gardena {
 }
 #[cfg(feature = "websocket-asyncstd")]
 pub mod asyncstd {
-    use futures::prelude::*;
+    use futures::{future::Either, prelude::*};
+    use log::warn;
 
     pub async fn connect_to_websocket<F>(
         url: String,
@@ -630,19 +631,67 @@ pub mod asyncstd {
     {
         let (ws_stream, _) = asyncstd_tungstenite::async_std::connect_async(url).await?;
 
-        let (_, read) = ws_stream.split();
+        let should_break = std::sync::Mutex::new(false);
+
+        let (mut write, read) = ws_stream.split();
         let act_on_messages = {
             read.for_each(|message| async {
-                let data = message.unwrap().into_data();
-                if let Ok(msg) = serde_json::from_slice::<super::Object>(&data) {
-                    act(msg);
+                if let Ok(data) = message {
+                    let data = data.into_data();
+                    if let Ok(msg) = serde_json::from_slice::<super::Object>(&data) {
+                        act(msg);
+                    } else {
+                        warn!("error parsing data from socket");
+                        warn!("{:?}", std::str::from_utf8(&data).unwrap());
+                        *should_break.lock().unwrap() = true;
+                    }
                 } else {
-                    dbg!(std::str::from_utf8(&data).unwrap());
+                    warn!("error reading data from socket");
+                    *should_break.lock().unwrap() = true;
                 }
             })
         };
 
-        act_on_messages.await;
+        futures::pin_mut!(act_on_messages);
+
+        // force websocket to die after 70 minutes as it should only last 60 minutes anyway
+        let force_kill = async_std::task::sleep(core::time::Duration::from_secs(4_200));
+        futures::pin_mut!(force_kill);
+        let mut ws_or_scheduled_death = futures::future::select(
+            // futures::future::poll_fn(|cx| force_kill.poll_tick(cx)),
+            force_kill,
+            act_on_messages,
+        );
+        loop {
+            // send ping message every 120 secondes
+            let ping_interval = async_std::task::sleep(core::time::Duration::from_secs(120));
+            futures::pin_mut!(ping_interval);
+
+            let first_done = futures::future::select(
+                // futures::future::poll_fn(|cx| ping_interval.poll_tick(cx)),
+                ping_interval,
+                ws_or_scheduled_death,
+            )
+            .await;
+            match first_done {
+                // ping future is first, refresh web socket listener future
+                Either::Left((_, b)) => {
+                    ws_or_scheduled_death = b;
+                }
+                // web socket listener future ended, exit
+                Either::Right((_, _)) => break,
+            }
+
+            // break as websocket received an unknown message
+            if *should_break.lock().unwrap() {
+                break;
+            }
+
+            // ping future was the first future to end, send ping
+            write
+                .send(asyncstd_tungstenite::tungstenite::Message::text("Ping"))
+                .await?;
+        }
 
         Ok(())
     }
@@ -673,7 +722,7 @@ pub mod tokio {
                         act(msg);
                     } else {
                         warn!("error parsing data from socket");
-                        dbg!(std::str::from_utf8(&data).unwrap());
+                        warn!("{:?}", std::str::from_utf8(&data).unwrap());
                         *should_break.lock().unwrap() = true;
                     }
                 } else {

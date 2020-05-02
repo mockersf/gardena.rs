@@ -15,8 +15,9 @@ log = "0.4"
 
 tungstenite = { version = "0.10", optional = true }
 asyncstd-tungstenite = { version = "0.4.2", optional = true, features = [ "async-native-tls", "async-std-runtime" ], package = "async-tungstenite" }
-futures = { version = "0.3", optional = true }
 tokio-tungstenite = { version = "0.4.2", optional = true, features = [ "tokio-runtime", "tokio-tls" ], package = "async-tungstenite" }
+async-std = {version = "1.5", optional = true }
+futures = { version = "0.3", optional = true }
 tokio = { version = "0.2", optional = true, features = ["full"] }
 
 hocon = { version = "0.3", optional = true }
@@ -27,7 +28,7 @@ env_logger = { version = "0.7", optional = true }
 
 [features]
 # default = ["websocket-tokio"]
-websocket-asyncstd = [ "tungstenite", "asyncstd-tungstenite", "futures" ]
+websocket-asyncstd = [ "tungstenite", "asyncstd-tungstenite", "futures", "async-std" ]
 websocket-tokio = [ "tungstenite", "tokio-tungstenite", "futures", "tokio" ]
 web-monitor = [ "hocon", "hyper", "lazy_static", "clap", "websocket-tokio", "env_logger" ]
 
