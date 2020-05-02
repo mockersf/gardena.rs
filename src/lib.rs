@@ -1,6 +1,9 @@
 use std::cell::RefCell;
+use std::fmt;
+use std::str::FromStr;
 
 use rand::{thread_rng, Rng};
+use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
 
 static AUTH_URL: &str = "https://api.authentication.husqvarnagroup.dev/v1/oauth2/token";
@@ -54,12 +57,186 @@ pub struct DeviceRelationShip {
     pub device: Response<ObjectLink>,
 }
 
+#[derive(Debug, PartialEq, Clone, enum_utils::IterVariants, enum_utils::FromStr)]
+#[enumeration(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MowerState {
+    Error,
+    Ok,
+    Warning,
+    #[enumeration(skip)]
+    Other(String),
+}
+impl MowerState {
+    pub fn to_iter() -> impl Iterator<Item = Self> + Clone {
+        Self::iter()
+    }
+}
+impl std::fmt::Display for MowerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MowerState::Error => write!(f, "ERROR"),
+            MowerState::Ok => write!(f, "OK"),
+            MowerState::Warning => write!(f, "WARNING"),
+            MowerState::Other(value) => write!(f, "{}", value),
+        }
+    }
+}
+struct MowerStateVisitor;
+impl<'de> Visitor<'de> for MowerStateVisitor {
+    type Value = MowerState;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string")
+    }
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(match value {
+            "ERROR" => MowerState::Error,
+            "OK" => MowerState::Ok,
+            "WARNING" => MowerState::Warning,
+            r => MowerState::Other(String::from(r)),
+        })
+    }
+}
+impl<'de> Deserialize<'de> for MowerState {
+    fn deserialize<D>(deserializer: D) -> Result<MowerState, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(MowerStateVisitor)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, enum_utils::IterVariants, enum_utils::FromStr)]
+#[enumeration(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MowerActivity {
+    None,
+    OkCharging,
+    OkCutting,
+    OkCuttingTimerOverridden,
+    OkLeaving,
+    OkSearching,
+    ParkedParkSelected,
+    ParkedTimer,
+    Paused,
+    #[enumeration(skip)]
+    Other(String),
+}
+impl MowerActivity {
+    pub fn to_iter() -> impl Iterator<Item = Self> + Clone {
+        Self::iter()
+    }
+}
+impl std::fmt::Display for MowerActivity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MowerActivity::None => write!(f, "NONE"),
+            MowerActivity::OkCharging => write!(f, "OK_CHARGING"),
+            MowerActivity::OkCutting => write!(f, "OK_CUTTING"),
+            MowerActivity::OkCuttingTimerOverridden => write!(f, "OK_CUTTING_TIMER_OVERRIDDEN"),
+            MowerActivity::OkLeaving => write!(f, "OK_LEAVING"),
+            MowerActivity::OkSearching => write!(f, "OK_SEARCHING"),
+            MowerActivity::ParkedParkSelected => write!(f, "PARKED_PARK_SELECTED"),
+            MowerActivity::ParkedTimer => write!(f, "PARKED_TIMER"),
+            MowerActivity::Paused => write!(f, "PAUSED"),
+            MowerActivity::Other(value) => write!(f, "{}", value),
+        }
+    }
+}
+struct MowerActivityVisitor;
+impl<'de> Visitor<'de> for MowerActivityVisitor {
+    type Value = MowerActivity;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string")
+    }
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(match MowerActivity::from_str(value) {
+            Ok(v) => v,
+            _ => MowerActivity::Other(String::from(value)),
+        })
+    }
+}
+impl<'de> Deserialize<'de> for MowerActivity {
+    fn deserialize<D>(deserializer: D) -> Result<MowerActivity, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(MowerActivityVisitor)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, enum_utils::IterVariants, enum_utils::FromStr)]
+#[enumeration(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum MowerErrorCode {
+    ChargingStationBlocked,
+    CollisionSensorProblemFront,
+    Lifted,
+    NoLoopSignal,
+    OffHatchOpen,
+    OutsideWorkingArea,
+    ParkedDailyLimitReached,
+    #[enumeration(skip)]
+    Other(String),
+}
+impl MowerErrorCode {
+    pub fn to_iter() -> impl Iterator<Item = Self> + Clone {
+        Self::iter()
+    }
+}
+impl std::fmt::Display for MowerErrorCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MowerErrorCode::ChargingStationBlocked => write!(f, "CHARGING_STATION_BLOCKED"),
+            MowerErrorCode::CollisionSensorProblemFront => {
+                write!(f, "COLLISION_SENSOR_PROBLEM_FRONT")
+            }
+            MowerErrorCode::Lifted => write!(f, "LIFTED"),
+            MowerErrorCode::NoLoopSignal => write!(f, "NO_LOOP_SIGNAL"),
+            MowerErrorCode::OffHatchOpen => write!(f, "OFF_HATCH_OPEN"),
+            MowerErrorCode::OutsideWorkingArea => write!(f, "OUTSIDE_WORKING_AREA"),
+            MowerErrorCode::ParkedDailyLimitReached => write!(f, "PARKED_DAILY_LIMIT_REACHED"),
+            MowerErrorCode::Other(value) => write!(f, "{}", value),
+        }
+    }
+}
+struct MowerErrorCodeVisitor;
+impl<'de> Visitor<'de> for MowerErrorCodeVisitor {
+    type Value = MowerErrorCode;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string")
+    }
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(match MowerErrorCode::from_str(value) {
+            Ok(v) => v,
+            _ => MowerErrorCode::Other(String::from(value)),
+        })
+    }
+}
+impl<'de> Deserialize<'de> for MowerErrorCode {
+    fn deserialize<D>(deserializer: D) -> Result<MowerErrorCode, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(MowerErrorCodeVisitor)
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct MowerAttributes {
-    pub state: Attribute<String>,
-    pub activity: Attribute<String>,
+    pub state: Attribute<MowerState>,
+    pub activity: Attribute<MowerActivity>,
     #[serde(rename = "lastErrorCode")]
-    pub last_error_code: Option<Attribute<String>>,
+    pub last_error_code: Option<Attribute<MowerErrorCode>>,
     #[serde(rename = "operatingHours")]
     pub operating_hours: Attribute<u16>,
 }
@@ -102,17 +279,111 @@ pub struct SensorAttributes {
     pub light_intensity: Attribute<f32>,
 }
 
+#[derive(Debug, PartialEq, Clone, enum_utils::IterVariants, enum_utils::FromStr)]
+#[enumeration(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CommonBatteryState {
+    Charging,
+    Ok,
+    #[enumeration(skip)]
+    Other(String),
+}
+impl CommonBatteryState {
+    pub fn to_iter() -> impl Iterator<Item = Self> + Clone {
+        Self::iter()
+    }
+}
+impl std::fmt::Display for CommonBatteryState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommonBatteryState::Charging => write!(f, "CHARGING"),
+            CommonBatteryState::Ok => write!(f, "OK"),
+            CommonBatteryState::Other(value) => write!(f, "{}", value),
+        }
+    }
+}
+struct CommonBatteryStateVisitor;
+impl<'de> Visitor<'de> for CommonBatteryStateVisitor {
+    type Value = CommonBatteryState;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string")
+    }
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(match CommonBatteryState::from_str(value) {
+            Ok(v) => v,
+            _ => CommonBatteryState::Other(String::from(value)),
+        })
+    }
+}
+impl<'de> Deserialize<'de> for CommonBatteryState {
+    fn deserialize<D>(deserializer: D) -> Result<CommonBatteryState, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(CommonBatteryStateVisitor)
+    }
+}
+
+#[derive(Debug, PartialEq, Clone, enum_utils::IterVariants, enum_utils::FromStr)]
+#[enumeration(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum CommonRfLinkState {
+    Online,
+    #[enumeration(skip)]
+    Other(String),
+}
+impl CommonRfLinkState {
+    pub fn to_iter() -> impl Iterator<Item = Self> + Clone {
+        Self::iter()
+    }
+}
+impl std::fmt::Display for CommonRfLinkState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CommonRfLinkState::Online => write!(f, "ONLINE"),
+            CommonRfLinkState::Other(value) => write!(f, "{}", value),
+        }
+    }
+}
+struct CommonRfLinkStateVisitor;
+impl<'de> Visitor<'de> for CommonRfLinkStateVisitor {
+    type Value = CommonRfLinkState;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string")
+    }
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        Ok(match CommonRfLinkState::from_str(value) {
+            Ok(v) => v,
+            _ => CommonRfLinkState::Other(String::from(value)),
+        })
+    }
+}
+impl<'de> Deserialize<'de> for CommonRfLinkState {
+    fn deserialize<D>(deserializer: D) -> Result<CommonRfLinkState, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_string(CommonRfLinkStateVisitor)
+    }
+}
+
 #[derive(Deserialize, Debug)]
 pub struct CommonAttributes {
     pub name: Attribute<String>,
     #[serde(rename = "batteryLevel")]
     pub battery_level: Attribute<u8>,
     #[serde(rename = "batteryState")]
-    pub battery_state: Attribute<String>,
+    pub battery_state: Attribute<CommonBatteryState>,
     #[serde(rename = "rfLinkLevel")]
     pub rf_link_level: Attribute<u8>,
     #[serde(rename = "rfLinkState")]
-    pub rf_link_state: Attribute<String>,
+    pub rf_link_state: Attribute<CommonRfLinkState>,
     pub serial: Attribute<String>,
     #[serde(rename = "modelType")]
     pub model_type: Attribute<String>,

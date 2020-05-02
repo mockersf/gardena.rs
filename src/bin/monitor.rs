@@ -318,7 +318,7 @@ fn gardena_object_to_state(object: &gardena_rs::Object) -> (String, State) {
                     ts,
                 },
                 battery_state: TsValue {
-                    value: attributes.battery_state.value.clone(),
+                    value: format!("{}", attributes.battery_state.value),
                     ts,
                 },
                 rf_link_level: TsValue {
@@ -326,7 +326,7 @@ fn gardena_object_to_state(object: &gardena_rs::Object) -> (String, State) {
                     ts,
                 },
                 rf_link_state: TsValue {
-                    value: attributes.rf_link_state.value.clone(),
+                    value: format!("{}", attributes.rf_link_state.value),
                     ts,
                 },
             }),
@@ -335,15 +335,18 @@ fn gardena_object_to_state(object: &gardena_rs::Object) -> (String, State) {
             format!("{}-MOWER", id),
             State::Mower(StateMower {
                 state: TsValue {
-                    value: attributes.state.value.clone(),
+                    value: format!("{}", attributes.state.value),
                     ts,
                 },
                 activity: TsValue {
-                    value: attributes.activity.value.clone(),
+                    value: format!("{}", attributes.activity.value),
                     ts,
                 },
                 last_error_code: TsValue {
-                    value: attributes.last_error_code.as_ref().map(|a| a.value.clone()),
+                    value: attributes
+                        .last_error_code
+                        .as_ref()
+                        .map(|a| format!("{}", a.value)),
                     ts,
                 },
                 operating_hours: TsValue {
