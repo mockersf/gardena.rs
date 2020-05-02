@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::fmt;
 use std::str::FromStr;
 
+use log::debug;
 use rand::{thread_rng, Rng};
 use serde::de::{self, Deserializer, Visitor};
 use serde::{Deserialize, Serialize};
@@ -77,7 +78,10 @@ impl std::fmt::Display for MowerState {
             MowerState::Error => write!(f, "ERROR"),
             MowerState::Ok => write!(f, "OK"),
             MowerState::Warning => write!(f, "WARNING"),
-            MowerState::Other(value) => write!(f, "{}", value),
+            MowerState::Other(value) => {
+                debug!("unknown value for MowerState encountered: {}", value);
+                write!(f, "{}", value)
+            }
         }
     }
 }
@@ -139,7 +143,10 @@ impl std::fmt::Display for MowerActivity {
             MowerActivity::ParkedParkSelected => write!(f, "PARKED_PARK_SELECTED"),
             MowerActivity::ParkedTimer => write!(f, "PARKED_TIMER"),
             MowerActivity::Paused => write!(f, "PAUSED"),
-            MowerActivity::Other(value) => write!(f, "{}", value),
+            MowerActivity::Other(value) => {
+                debug!("unknown value for MowerActivity encountered: {}", value);
+                write!(f, "{}", value)
+            }
         }
     }
 }
@@ -199,7 +206,10 @@ impl std::fmt::Display for MowerErrorCode {
             MowerErrorCode::OffHatchOpen => write!(f, "OFF_HATCH_OPEN"),
             MowerErrorCode::OutsideWorkingArea => write!(f, "OUTSIDE_WORKING_AREA"),
             MowerErrorCode::ParkedDailyLimitReached => write!(f, "PARKED_DAILY_LIMIT_REACHED"),
-            MowerErrorCode::Other(value) => write!(f, "{}", value),
+            MowerErrorCode::Other(value) => {
+                debug!("unknown value for MowerErrorCode encountered: {}", value);
+                write!(f, "{}", value)
+            }
         }
     }
 }
@@ -295,7 +305,13 @@ impl std::fmt::Display for CommonBatteryState {
         match self {
             CommonBatteryState::Charging => write!(f, "CHARGING"),
             CommonBatteryState::Ok => write!(f, "OK"),
-            CommonBatteryState::Other(value) => write!(f, "{}", value),
+            CommonBatteryState::Other(value) => {
+                debug!(
+                    "unknown value for CommonBatteryState encountered: {}",
+                    value
+                );
+                write!(f, "{}", value)
+            }
         }
     }
 }
@@ -341,7 +357,10 @@ impl std::fmt::Display for CommonRfLinkState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CommonRfLinkState::Online => write!(f, "ONLINE"),
-            CommonRfLinkState::Other(value) => write!(f, "{}", value),
+            CommonRfLinkState::Other(value) => {
+                debug!("unknown value for CommonRfLinkState encountered: {}", value);
+                write!(f, "{}", value)
+            }
         }
     }
 }
@@ -632,6 +651,7 @@ pub mod asyncstd {
 #[cfg(feature = "websocket-tokio")]
 pub mod tokio {
     use futures::{future::Either, prelude::*};
+    use log::warn;
 
     pub async fn connect_to_websocket<F>(
         url: String,
@@ -652,12 +672,12 @@ pub mod tokio {
                     if let Ok(msg) = serde_json::from_slice::<super::Object>(&data) {
                         act(msg);
                     } else {
-                        println!("error parsing data from socket");
+                        warn!("error parsing data from socket");
                         dbg!(std::str::from_utf8(&data).unwrap());
                         *should_break.lock().unwrap() = true;
                     }
                 } else {
-                    println!("error reading data from socket");
+                    warn!("error reading data from socket");
                     *should_break.lock().unwrap() = true;
                 }
             })

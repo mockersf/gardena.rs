@@ -12,6 +12,7 @@ use hyper::{
     Body, Request, Response, Server,
 };
 use lazy_static::lazy_static;
+use log::{debug, info, warn};
 use serde::Deserialize;
 
 static NEVER_HAPPENING: &str = "NEVER_HAPPENING";
@@ -57,7 +58,7 @@ async fn serve_req(_req: Request<Body>) -> Result<Response<Body>, hyper::Error> 
 }
 
 async fn run_server(addr: SocketAddr) {
-    println!("Listening on http://{}", addr);
+    info!("Listening on http://{}", addr);
 
     let serve_future = Server::bind(&addr).serve(make_service_fn(|_| async {
         {
@@ -66,7 +67,7 @@ async fn run_server(addr: SocketAddr) {
     }));
 
     if let Err(e) = serve_future.await {
-        eprintln!("server error: {}", e);
+        warn!("server error: {}", e);
     }
 }
 
@@ -367,6 +368,8 @@ fn gardena_object_to_state(object: &gardena_rs::Object) -> (String, State) {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::from_env(env_logger::Env::default().default_filter_or("monitor=debug")).init();
+
     let cli_opts: CliOpts = CliOpts::parse();
 
     let opts: Opts = hocon::HoconLoader::new()
@@ -427,7 +430,7 @@ async fn refresh_and_listen(
             update_state_and_changes(object);
         });
 
-        println!("opening socket");
+        debug!("opening socket");
         gardena_rs::tokio::connect_to_websocket(attributes.url.clone(), |msg| {
             update_state_and_changes(&msg);
         })
